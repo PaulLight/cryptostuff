@@ -1,5 +1,42 @@
 <template>
   <div class="container mx-auto flex flex-col items-center bg-gray-100 p-4">
+    <div
+      v-if="loaderVisibility"
+      class="
+        fixed
+        w-100
+        h-100
+        opacity-80
+        bg-purple-800
+        inset-0
+        z-50
+        flex
+        items-center
+        justify-center
+      "
+    >
+      <svg
+        class="animate-spin -ml-1 mr-3 h-12 w-12 text-white"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
+      </svg>
+    </div>
+
     <div class="container">
       <section>
         <div class="flex">
@@ -10,7 +47,7 @@
             <div class="mt-1 relative rounded-md shadow-md">
               <input
                 v-model="coin"
-                @keydown.enter="addCoin"
+                @keydown.enter="addCoin(coin)"
                 type="text"
                 name="wallet"
                 id="wallet"
@@ -26,13 +63,16 @@
                   sm:text-sm
                   rounded-md
                 "
-                placeholder="Например DOGE"
+                placeholder="Наприклад DOGE"
               />
             </div>
             <div
               class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
             >
               <span
+                v-for="coin in suggestedCoins"
+                :key="coin"
+                @click="addCoin(coin)"
                 class="
                   inline-flex
                   items-center
@@ -46,62 +86,17 @@
                   cursor-pointer
                 "
               >
-                BTC
-              </span>
-              <span
-                class="
-                  inline-flex
-                  items-center
-                  px-2
-                  m-1
-                  rounded-md
-                  text-xs
-                  font-medium
-                  bg-gray-300
-                  text-gray-800
-                  cursor-pointer
-                "
-              >
-                DOGE
-              </span>
-              <span
-                class="
-                  inline-flex
-                  items-center
-                  px-2
-                  m-1
-                  rounded-md
-                  text-xs
-                  font-medium
-                  bg-gray-300
-                  text-gray-800
-                  cursor-pointer
-                "
-              >
-                BCH
-              </span>
-              <span
-                class="
-                  inline-flex
-                  items-center
-                  px-2
-                  m-1
-                  rounded-md
-                  text-xs
-                  font-medium
-                  bg-gray-300
-                  text-gray-800
-                  cursor-pointer
-                "
-              >
-                CHD
+                {{ coin }}
               </span>
             </div>
-            <div class="text-sm text-red-600">Така монета вже додана</div>
+
+            <div v-show="sameCoinError" class="text-sm text-red-600">
+              Така монета вже додана
+            </div>
           </div>
         </div>
         <button
-          @click="addCoin"
+          @click="addCoin()"
           type="button"
           class="
             my-4
@@ -254,6 +249,8 @@
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
   name: "App",
   data() {
@@ -261,30 +258,97 @@ export default {
       coin: "default",
       coins: [],
       sel: null,
-      graph: []
+      graph: [],
+      allCoins: null,
+      loaderVisibility: true,
+      sameCoinError: false,
+      suggestedCoins: ["BTC", "DOGE", "TSLA", "Tizer"]
     };
   },
+  created() {
+    const coinsList = localStorage.getItem("coins-list");
+    if (coinsList) {
+      this.coins = JSON.parse(coinsList);
+      this.coins.forEach((updatedCoin) => {
+        this.subscribeToUpdates(updatedCoin.name);
+      });
+    }
+  },
   methods: {
-    addCoin() {
-      const currentCoin = {
-        name: this.coin,
-        price: "-"
-      };
-      this.coins.push(currentCoin);
+    suggestedCoinsArray() {
+      const filtered = [];
+      let count = 0;
+
+      if (!this.allCoins) {
+        return;
+      }
+
+      for (const [key] of Object.entries(this.allCoins)) {
+        if (
+          this.coin.toUpperCase() ===
+          key.substr(0, this.coin.length).toUpperCase()
+        ) {
+          filtered.push(key);
+          if (++count === 4) {
+            return (this.suggestedCoins = filtered);
+          }
+        }
+      }
+
+      return (this.suggestedCoins = filtered);
+    },
+    subscribeToUpdates(createdCoin) {
       setInterval(async () => {
         const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${currentCoin.name}&tsyms=USD&api_key=af4216c945843dc38f2b62eed49a688aedc46ad0763e7693b4b61e47c16320e4`
+          `https://min-api.cryptocompare.com/data/price?fsym=${createdCoin}&tsyms=USD&api_key=af4216c945843dc38f2b62eed49a688aedc46ad0763e7693b4b61e47c16320e4`
         );
         const data = await f.json();
 
-        this.coins.find((t) => t.name === currentCoin.name).price =
+        const comparedCoin = this.coins.find((t) => t.name === createdCoin);
+        if (!comparedCoin) {
+          return;
+        }
+        comparedCoin.price =
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
-        if (this.sel?.name === currentCoin.name) {
+        if (this.sel?.name === createdCoin) {
           this.graph.push(data.USD);
         }
       }, 5000);
       this.coin = "";
+    },
+    addCoin(coinForm) {
+      let createdCoin = this.coin;
+      if (coinForm) {
+        createdCoin = coinForm;
+        this.coin = coinForm;
+      }
+
+      if (!createdCoin) {
+        return;
+      }
+
+      if (this.coinExists(createdCoin)) {
+        this.sameCoinError = true;
+        return;
+      }
+
+      this.sameCoinError = false;
+
+      const currentCoin = {
+        name: createdCoin,
+        price: "-"
+      };
+
+      this.coins.push(currentCoin);
+
+      localStorage.setItem("coins-list", JSON.stringify(this.coins));
+      this.subscribeToUpdates(createdCoin);
+    },
+    coinExists(coinName) {
+      return this.coins.some(function (coin) {
+        return coin.name.toLowerCase() === coinName.toLowerCase();
+      });
     },
     removeCoin(coinToRemove) {
       this.coins = this.coins.filter((coin) => coin !== coinToRemove);
@@ -302,11 +366,23 @@ export default {
       this.graph = [];
     }
   },
-  computed: {
-    // some() {
-    // const some = this.coin = this.sel
-    // return some;
-    // }
+  watch: {
+    coin() {
+      this.suggestedCoinsArray();
+    }
+  },
+  mounted() {
+    setTimeout(() => {
+      this.loaderVisibility = false;
+    }, 500);
+
+    axios
+      .get("https://min-api.cryptocompare.com/data/all/coinlist?summary=true")
+      .then((response) => {
+        if (response.status === 200) {
+          return (this.allCoins = response.data.Data);
+        }
+      });
   }
 };
 </script>
