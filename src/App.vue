@@ -137,15 +137,71 @@
       </section>
 
       <template v-if="coins.length > 0">
-        {{ sel }}
+        <hr class="w-full border-t border-gray-600 my-4" />
+        <div>
+          Фільтрація <input v-model="filter" /><button
+            class="
+              my-4
+              mx-2
+              inline-flex
+              items-center
+              py-2
+              px-4
+              border border-transparent
+              shadow-sm
+              text-sm
+              leading-4
+              font-medium
+              rounded-full
+              text-white
+              bg-gray-600
+              hover:bg-gray-700
+              transition-colors
+              duration-300
+              focus:outline-none
+              focus:ring-2 focus:ring-offset-2 focus:ring-gray-500
+            "
+            @click="page = page - 1"
+            v-if="page > 1"
+          >
+            Назад</button
+          ><button
+            class="
+              my-4
+              mx-2
+              inline-flex
+              items-center
+              py-2
+              px-4
+              border border-transparent
+              shadow-sm
+              text-sm
+              leading-4
+              font-medium
+              rounded-full
+              text-white
+              bg-gray-600
+              hover:bg-gray-700
+              transition-colors
+              duration-300
+              focus:outline-none
+              focus:ring-2 focus:ring-offset-2 focus:ring-gray-500
+            "
+            @click="page = parseInt(page) + 1"
+            v-if="hasNextPage"
+          >
+            Вперед
+          </button>
+        </div>
+        {{ selectedCoin }}
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <!-- :class="sel === t ? 'border-4' : ''" -->
+          <!-- :class="selectedCoin === t ? 'border-4' : ''" -->
           <div
-            v-for="t in coins"
+            v-for="t in paginatedCoins"
             :key="t.name"
             :class="{
-              'border-4': sel === t
+              'border-4': selectedCoin === t
             }"
             @click="selectCoin(t)"
             class="
@@ -204,20 +260,20 @@
         </dl>
         <hr class="w-full border-t border-gray-600 my-4" />
       </template>
-      <section v-if="sel" class="relative">
+      <section v-if="selectedCoin" class="relative">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-          {{ sel.name }} - USD
+          {{ selectedCoin.name }} - USD
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-            v-for="(bar, idx) in normalizeGraph()"
+            v-for="(bar, idx) in normalizedGraph"
             :key="idx"
             :style="{ height: `${bar}%` }"
             class="bg-purple-800 border w-10"
           ></div>
         </div>
         <button
-          @click="sel = null"
+          @click="selectedCoin = null"
           type="button"
           class="absolute top-0 right-0"
         >
@@ -249,24 +305,56 @@
 </template>
 
 <script>
-import axios from "axios";
+import axios from 'axios';
 
 export default {
-  name: "App",
+  name: 'App',
+
   data() {
     return {
-      coin: "default",
+      coin: 'default',
+      filter: '',
       coins: [],
-      sel: null,
+      selectedCoin: null,
       graph: [],
       allCoins: null,
       loaderVisibility: true,
       sameCoinError: false,
-      suggestedCoins: ["BTC", "DOGE", "TSLA", "Tizer"]
+      suggestedCoins: ['BTC', 'DOGE', 'TSLA', 'LTC'],
+      page: 1
     };
   },
+
   created() {
-    const coinsList = localStorage.getItem("coins-list");
+    const windowDataURL = Object.fromEntries(
+      new URL(window.location).searchParams.entries()
+    );
+
+    //first method
+    const VALID_KEYS = ['filter', 'page'];
+    VALID_KEYS.forEach((key) => {
+      if (windowDataURL[key]) {
+        this[key] = windowDataURL[key];
+      }
+    });
+    //first method
+
+    //second method
+    // Object.assign(this, windowDataURL);
+    //second method
+
+    //third method
+    // if (windowDataURL.filter) {
+    //   this.filter = windowDataURL.filter;
+    // }
+
+    // if (windowDataURL.page) {
+    //   this.page = windowDataURL.page;
+    // }
+    //third method
+
+    const coinsList = localStorage.getItem('coins-list');
+
     if (coinsList) {
       this.coins = JSON.parse(coinsList);
       this.coins.forEach((updatedCoin) => {
@@ -274,6 +362,53 @@ export default {
       });
     }
   },
+
+  computed: {
+    statIndex() {
+      return (this.page - 1) * 6;
+    },
+
+    endIndex() {
+      return this.page * 6;
+    },
+
+    filteredCoins() {
+      const self = this;
+
+      return this.coins.filter((coin) =>
+        coin.name.toUpperCase().includes(self.filter.toUpperCase())
+      );
+    },
+
+    paginatedCoins() {
+      return this.filteredCoins.slice(this.statIndex, this.endIndex);
+    },
+
+    hasNextPage() {
+      return this.filteredCoins.length > this.endIndex;
+    },
+
+    normalizedGraph() {
+      const maxValue = Math.max(...this.graph);
+      const minValue = Math.min(...this.graph);
+
+      if (maxValue === minValue) {
+        return this.graph.map(() => 50);
+      }
+
+      return this.graph.map(
+        (price) => 5 + ((price - minValue) * 95) / (maxValue - minValue)
+      );
+    },
+
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page
+      };
+    }
+  },
+
   methods: {
     suggestedCoinsArray() {
       const filtered = [];
@@ -297,38 +432,45 @@ export default {
 
       return (this.suggestedCoins = filtered);
     },
+
     subscribeToUpdates(createdCoin) {
       setInterval(async () => {
         const f = await fetch(
           `https://min-api.cryptocompare.com/data/price?fsym=${createdCoin}&tsyms=USD&api_key=af4216c945843dc38f2b62eed49a688aedc46ad0763e7693b4b61e47c16320e4`
         );
-        const data = await f.json();
 
+        const data = await f.json();
         const comparedCoin = this.coins.find((t) => t.name === createdCoin);
+
         if (!comparedCoin) {
           return;
         }
-        comparedCoin.price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
-        if (this.sel?.name === createdCoin) {
+        comparedCoin.price = data.USD
+          ? data.USD > 1
+            ? data.USD.toFixed(2)
+            : data.USD.toPrecision(2)
+          : '';
+
+        if (this.selectedCoin?.name === createdCoin) {
           this.graph.push(data.USD);
         }
       }, 5000);
-      this.coin = "";
+
+      this.coin = '';
     },
+
     addCoin(coinForm) {
       let createdCoin = this.coin;
+
+      this.filter = '';
+
       if (coinForm) {
         createdCoin = coinForm;
         this.coin = coinForm;
       }
 
-      if (!createdCoin) {
-        return;
-      }
-
-      if (this.coinExists(createdCoin)) {
+      if (!createdCoin || this.coinExists(createdCoin)) {
         this.sameCoinError = true;
         return;
       }
@@ -337,47 +479,68 @@ export default {
 
       const currentCoin = {
         name: createdCoin,
-        price: "-"
+        price: '-'
       };
 
-      this.coins.push(currentCoin);
-
-      localStorage.setItem("coins-list", JSON.stringify(this.coins));
+      this.coins = [...this.coins, currentCoin];
       this.subscribeToUpdates(createdCoin);
     },
+
     coinExists(coinName) {
       return this.coins.some(function (coin) {
         return coin.name.toLowerCase() === coinName.toLowerCase();
       });
     },
+
     removeCoin(coinToRemove) {
       this.coins = this.coins.filter((coin) => coin !== coinToRemove);
+      this.selectedCoin = '';
     },
-    normalizeGraph() {
-      const maxValue = Math.max(...this.graph);
-      const minValue = Math.min(...this.graph);
 
-      return this.graph.map(
-        (price) => 5 + ((price - minValue) * 95) / (maxValue - minValue)
-      );
-    },
     selectCoin(coin) {
-      this.sel = coin;
-      this.graph = [];
+      this.selectedCoin = coin;
     }
   },
+
   watch: {
+    selectedCoin() {
+      this.graph = [];
+    },
+
+    coins() {
+      localStorage.setItem('coins-list', JSON.stringify(this.coins));
+    },
+
+    paginatedCoins() {
+      if (this.paginatedCoins.length === 0 && this.page > 1) {
+        this.page -= 1;
+      }
+    },
+
     coin() {
       this.suggestedCoinsArray();
+    },
+
+    filter() {
+      this.page = 1;
+    },
+
+    pageStateOptions() {
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${this.filter}&page=${this.page}`
+      );
     }
   },
+
   mounted() {
     setTimeout(() => {
       this.loaderVisibility = false;
     }, 500);
 
     axios
-      .get("https://min-api.cryptocompare.com/data/all/coinlist?summary=true")
+      .get('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
       .then((response) => {
         if (response.status === 200) {
           return (this.allCoins = response.data.Data);
