@@ -218,7 +218,7 @@
                 {{ t.name }} - USD
               </dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ t.price }}
+                {{ formatPrice(t.price) }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"></div>
@@ -306,6 +306,7 @@
 
 <script>
 import axios from 'axios';
+import { subscribeToCoinUpdate, unsubscribeToCoinUpdate } from './api';
 
 export default {
   name: 'App',
@@ -337,11 +338,9 @@ export default {
         this[key] = windowDataURL[key];
       }
     });
-    //first method
 
     //second method
     // Object.assign(this, windowDataURL);
-    //second method
 
     //third method
     // if (windowDataURL.filter) {
@@ -357,10 +356,14 @@ export default {
 
     if (coinsList) {
       this.coins = JSON.parse(coinsList);
-      this.coins.forEach((updatedCoin) => {
-        this.subscribeToUpdates(updatedCoin.name);
+      this.coins.forEach((coin) => {
+        subscribeToCoinUpdate(coin.name, (newPrice) =>
+          this.updateCoin(coin.name, newPrice)
+        );
       });
     }
+    // setInterval(() => this.updateCoins(), 5000);
+    // setInterval(this.updateCoins, 5000);
   },
 
   computed: {
@@ -410,6 +413,39 @@ export default {
   },
 
   methods: {
+    updateCoin(coinName, newPrice) {
+      return this.coins
+        .filter((coin) => coin.name === coinName)
+        .forEach((coin) => {
+          coin.price = newPrice;
+        });
+    },
+
+    formatPrice(price) {
+      if (price === '-') {
+        return price;
+      }
+
+      return price > 1 ? price.toFixed(2) : price.toPrecision(2);
+    },
+
+    async updateCoins() {
+      // const self = this;
+      // if (!this.coins.length) {
+      //   return;
+      // }
+      // const exchangeData = await loadCoins(self.coins.map((coin) => coin.name));
+      // self.coins.forEach((coin) => {
+      //   const price = exchangeData[coin.name.toUpperCase()];
+      //   // if (!price) {
+      //   //   coin.price = '-';
+      //   //   return;
+      //   // }
+      //   // same below
+      //   coin.price = price ?? '-';
+      // });
+    },
+
     suggestedCoinsArray() {
       const filtered = [];
       let count = 0;
@@ -431,33 +467,6 @@ export default {
       }
 
       return (this.suggestedCoins = filtered);
-    },
-
-    subscribeToUpdates(createdCoin) {
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${createdCoin}&tsyms=USD&api_key=af4216c945843dc38f2b62eed49a688aedc46ad0763e7693b4b61e47c16320e4`
-        );
-
-        const data = await f.json();
-        const comparedCoin = this.coins.find((t) => t.name === createdCoin);
-
-        if (!comparedCoin) {
-          return;
-        }
-
-        comparedCoin.price = data.USD
-          ? data.USD > 1
-            ? data.USD.toFixed(2)
-            : data.USD.toPrecision(2)
-          : '';
-
-        if (this.selectedCoin?.name === createdCoin) {
-          this.graph.push(data.USD);
-        }
-      }, 5000);
-
-      this.coin = '';
     },
 
     addCoin(coinForm) {
@@ -483,7 +492,10 @@ export default {
       };
 
       this.coins = [...this.coins, currentCoin];
-      this.subscribeToUpdates(createdCoin);
+
+      subscribeToCoinUpdate(this.coin, (newPrice) =>
+        this.updateCoin(this.coin, newPrice)
+      );
     },
 
     coinExists(coinName) {
@@ -494,6 +506,7 @@ export default {
 
     removeCoin(coinToRemove) {
       this.coins = this.coins.filter((coin) => coin !== coinToRemove);
+      unsubscribeToCoinUpdate(this.coin, () => {});
       this.selectedCoin = '';
     },
 
