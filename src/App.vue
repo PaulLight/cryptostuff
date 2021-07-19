@@ -307,6 +307,7 @@
 <script>
 import axios from 'axios';
 import { subscribeToCoinUpdate, unsubscribeToCoinUpdate } from './api';
+// import { subscribeBroadcast } from './broadcast';
 
 export default {
   name: 'App',
@@ -338,7 +339,7 @@ export default {
         this[key] = windowDataURL[key];
       }
     });
-
+    // subscribeBroadcast;
     //second method
     // Object.assign(this, windowDataURL);
 
@@ -413,12 +414,51 @@ export default {
   },
 
   methods: {
+    addCoin(coinForm) {
+      let createdCoin = this.coin;
+
+      this.coin = '';
+      this.filter = '';
+
+      if (coinForm) {
+        createdCoin = coinForm;
+        this.coin = coinForm;
+      }
+
+      if (!createdCoin || this.coinExists(createdCoin)) {
+        this.sameCoinError = true;
+        return;
+      }
+
+      this.sameCoinError = false;
+
+      const currentCoin = {
+        name: createdCoin,
+        price: '-'
+      };
+
+      this.coins = [...this.coins, currentCoin];
+
+      subscribeToCoinUpdate(currentCoin.name, (newPrice) =>
+        this.updateCoin(currentCoin.name, newPrice)
+      );
+    },
+
     updateCoin(coinName, newPrice) {
       return this.coins
         .filter((coin) => coin.name === coinName)
         .forEach((coin) => {
           coin.price = newPrice;
+          if (coin === this.selectedCoin) {
+            this.graph.push(newPrice);
+          }
         });
+    },
+
+    removeCoin(coinToRemove) {
+      this.coins = this.coins.filter((coin) => coin !== coinToRemove);
+      unsubscribeToCoinUpdate(coinToRemove.name);
+      this.selectedCoin = '';
     },
 
     formatPrice(price) {
@@ -469,45 +509,10 @@ export default {
       return (this.suggestedCoins = filtered);
     },
 
-    addCoin(coinForm) {
-      let createdCoin = this.coin;
-
-      this.filter = '';
-
-      if (coinForm) {
-        createdCoin = coinForm;
-        this.coin = coinForm;
-      }
-
-      if (!createdCoin || this.coinExists(createdCoin)) {
-        this.sameCoinError = true;
-        return;
-      }
-
-      this.sameCoinError = false;
-
-      const currentCoin = {
-        name: createdCoin,
-        price: '-'
-      };
-
-      this.coins = [...this.coins, currentCoin];
-
-      subscribeToCoinUpdate(this.coin, (newPrice) =>
-        this.updateCoin(this.coin, newPrice)
-      );
-    },
-
     coinExists(coinName) {
       return this.coins.some(function (coin) {
         return coin.name.toLowerCase() === coinName.toLowerCase();
       });
-    },
-
-    removeCoin(coinToRemove) {
-      this.coins = this.coins.filter((coin) => coin !== coinToRemove);
-      unsubscribeToCoinUpdate(this.coin, () => {});
-      this.selectedCoin = '';
     },
 
     selectCoin(coin) {
