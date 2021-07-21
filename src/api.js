@@ -19,7 +19,6 @@ socket.addEventListener('message', (e) => {
     return;
   }
 
-  // updateStorageEvent();
   const handlers = coinsHandlers.get(currentCoin) ?? [];
   handlers.forEach((fn) => fn(newPrice));
 });
@@ -59,7 +58,7 @@ function sendToWebSocket(socketMessage) {
 
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(message);
-    // window.addEventListener('storage', displayStorageEvent, true);
+
     return;
   }
 
@@ -67,35 +66,24 @@ function sendToWebSocket(socketMessage) {
     'open',
     () => {
       socket.send(message);
-      // window.addEventListener('storage', displayStorageEvent, true);
     },
     { once: true }
   );
 }
 
-function subscribeToCoinWS(coinName) {
+function subscribeToCoinWS(coinName, coindCurrencyFrom = 'USD') {
   sendToWebSocket({
     action: 'SubAdd',
-    subs: [`5~CCCAGG~${coinName}~USD`]
+    subs: [`5~CCCAGG~${coinName}~${coindCurrencyFrom}`]
   });
 }
 
-function unsubscribeFromCoinWS(coinName) {
+function unsubscribeFromCoinWS(coinName, coindCurrencyFrom = 'USD') {
   sendToWebSocket({
     action: 'SubRemove',
-    subs: [`5~CCCAGG~${coinName}~USD`]
+    subs: [`5~CCCAGG~${coinName}~${coindCurrencyFrom}`]
   });
 }
-
-// // Element to display the updated data
-// function displayStorageEvent(e) {
-//   if (e.key == 'storage-event') {
-//     console.log('displayStorageEvent');
-//   }
-// }
-// function updateStorageEvent() {
-//   localStorage.setItem('storage-event', this.value);
-// }
 
 export const subscribeToCoinUpdate = (coin, cb) => {
   const subscribers = coinsHandlers.get(coin) || [];
@@ -113,3 +101,9 @@ export const unsubscribeToCoinUpdate = (coin) => {
 // setInterval(loadCoins, 5000);
 
 window.coins = coinsHandlers;
+
+
+// Get price of coin wich don`t have direct converion rate to USD
+
+// subscribeToCoinWS(coinSymbol, 'BTC');
+// subscribeToCoinWS('BTC', 'USD');

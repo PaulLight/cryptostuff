@@ -66,9 +66,7 @@
                 placeholder="Наприклад DOGE"
               />
             </div>
-            <div
-              class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
-            >
+            <div class="flex bg-white shadow-md p-1 rounded-md flex-wrap">
               <span
                 v-for="coin in suggestedCoins"
                 :key="coin"
@@ -200,18 +198,15 @@
           <div
             v-for="t in paginatedCoins"
             :key="t.name"
-            :class="{
-              'border-4': selectedCoin === t
-            }"
             @click="selectCoin(t)"
             class="
-              bg-white
               overflow-hidden
               shadow
               rounded-lg
               border-purple-800 border-solid
               cursor-pointer
             "
+            :class="[t.price > 0 ? 'bg-white' : 'bg-red-100']"
           >
             <div class="px-4 py-5 sm:p-6 text-center">
               <dt class="text-sm font-medium text-gray-500 truncate">
@@ -445,14 +440,14 @@ export default {
     },
 
     updateCoin(coinName, newPrice) {
-      return this.coins
-        .filter((coin) => coin.name === coinName)
-        .forEach((coin) => {
-          coin.price = newPrice;
-          if (coin === this.selectedCoin) {
-            this.graph.push(newPrice);
-          }
-        });
+      const newCoin = this.coins.filter((coin) => coin.name === coinName);
+      return newCoin.forEach((coin) => {
+        coin.price = newPrice;
+
+        if (coin === this.selectedCoin) {
+          this.graph.push(newPrice);
+        }
+      });
     },
 
     removeCoin(coinToRemove) {
