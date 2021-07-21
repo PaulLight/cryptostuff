@@ -5,9 +5,6 @@ const socket = new WebSocket(
   `wss://streamer.cryptocompare.com/v2?api_key=${API_KEY}`
 );
 
-const bChannel = new BroadcastChannel('WebSocketChannel');
-const idToPortMap = {};
-
 const AGGREGATE_INDEX = '5';
 
 socket.addEventListener('message', (e) => {
@@ -21,6 +18,8 @@ socket.addEventListener('message', (e) => {
   if (type !== AGGREGATE_INDEX || newPrice === undefined) {
     return;
   }
+
+  // updateStorageEvent();
   const handlers = coinsHandlers.get(currentCoin) ?? [];
   handlers.forEach((fn) => fn(newPrice));
 });
@@ -60,10 +59,7 @@ function sendToWebSocket(socketMessage) {
 
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(message);
-    bChannel.postMessage({
-      type: 'WSState',
-      state: socket.readyState
-    });
+    // window.addEventListener('storage', displayStorageEvent, true);
     return;
   }
 
@@ -71,6 +67,7 @@ function sendToWebSocket(socketMessage) {
     'open',
     () => {
       socket.send(message);
+      // window.addEventListener('storage', displayStorageEvent, true);
     },
     { once: true }
   );
@@ -83,56 +80,22 @@ function subscribeToCoinWS(coinName) {
   });
 }
 
-socket.onmessage = ({ data }) => {
-  console.log(data);
-  // Construct object to be passed
-  const parsedData = {
-    data: JSON.parse(data),
-    type: 'message'
-  };
-  if (!parsedData.data.from) {
-    // Broadcast to all contexts(tabs)
-    bChannel.postMessage(parsedData);
-  } else {
-    // Get the port to post to using
-    // uuid, ie send to expected tab.
-    idToPortMap[parsedData.data.from].postMessage(parsedData);
-  }
-};
-
-// onconnect = (e) => {
-//   // Get the MessagePort from the event.
-//   // This will be the
-//   // communication channel between
-//   // SharedWorker and the Tab
-//   const port = e.ports[0];
-//   port.onmessage = (msg) => {
-//     // Collect port information in the map
-//     idToPortMap[msg.data.from] = port;
-
-//     // Forward this message to
-//     // ws connection.
-//     socket.send(
-//       JSON.stringify({
-//         data: msg.data
-//       })
-//     );
-//   };
-//   // We need this to notify the
-//   // newly connected context to know
-//   // the current state of WS connection.
-//   port.postMessage({
-//     state: socket.readyState,
-//     type: 'WSState'
-//   });
-// };
-
 function unsubscribeFromCoinWS(coinName) {
   sendToWebSocket({
     action: 'SubRemove',
     subs: [`5~CCCAGG~${coinName}~USD`]
   });
 }
+
+// // Element to display the updated data
+// function displayStorageEvent(e) {
+//   if (e.key == 'storage-event') {
+//     console.log('displayStorageEvent');
+//   }
+// }
+// function updateStorageEvent() {
+//   localStorage.setItem('storage-event', this.value);
+// }
 
 export const subscribeToCoinUpdate = (coin, cb) => {
   const subscribers = coinsHandlers.get(coin) || [];
