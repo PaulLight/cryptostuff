@@ -6,21 +6,61 @@ const socket = new WebSocket(
 );
 
 const AGGREGATE_INDEX = '5';
+const BASIC_COIN = 'BTC';
+const BASIC_CURRENCY = 'USD';
+let coinNameTemp = '';
+let priceToBTC = 0;
+let priceFromBTC = 0;
 
 socket.addEventListener('message', (e) => {
   console.log(e);
+  let finalPrice = 0;
+  let coinAfterUpdate = '';
+
   const {
     TYPE: type,
     FROMSYMBOL: currentCoin,
-    PRICE: newPrice
+    PRICE: newPrice,
+    MESSAGE: messageType,
+    TOSYMBOL: toSymbol
   } = JSON.parse(e.data);
+
+  if (messageType === 'INVALID_SUB') {
+    subscribeToCoinWS(coinNameTemp, BASIC_COIN);
+    subscribeToCoinWS(BASIC_COIN, BASIC_CURRENCY);
+    return;
+  }
+
+  if (!currentCoin) {
+    return;
+  }
+
+  if (toSymbol === BASIC_COIN && newPrice !== undefined) {
+    priceToBTC = newPrice;
+  }
+
+  if (
+    currentCoin === BASIC_COIN &&
+    currentCoin !== coinNameTemp &&
+    newPrice !== undefined
+  ) {
+    priceFromBTC = newPrice;
+  }
 
   if (type !== AGGREGATE_INDEX || newPrice === undefined) {
     return;
   }
 
-  const handlers = coinsHandlers.get(currentCoin) ?? [];
-  handlers.forEach((fn) => fn(newPrice));
+  if (priceToBTC !== 0 && priceFromBTC !== 0) {
+    finalPrice = priceToBTC * priceFromBTC;
+    coinAfterUpdate = coinNameTemp;
+  } else {
+    finalPrice = newPrice;
+    coinAfterUpdate = currentCoin;
+  }
+
+  const handlers = coinsHandlers.get(coinAfterUpdate) ?? [];
+  handlers.forEach((fn) => fn(finalPrice));
 });
 
 const coinsHandlers = new Map();
@@ -71,21 +111,22 @@ function sendToWebSocket(socketMessage) {
   );
 }
 
-function subscribeToCoinWS(coinName, coindCurrencyFrom = 'USD') {
+function subscribeToCoinWS(coinName, coindCurrencyTo = BASIC_CURRENCY) {
   sendToWebSocket({
     action: 'SubAdd',
-    subs: [`5~CCCAGG~${coinName}~${coindCurrencyFrom}`]
+    subs: [`${AGGREGATE_INDEX}~CCCAGG~${coinName}~${coindCurrencyTo}`]
   });
 }
 
-function unsubscribeFromCoinWS(coinName, coindCurrencyFrom = 'USD') {
+function unsubscribeFromCoinWS(coinName, coindCurrencyTo = BASIC_CURRENCY) {
   sendToWebSocket({
     action: 'SubRemove',
-    subs: [`5~CCCAGG~${coinName}~${coindCurrencyFrom}`]
+    subs: [`${AGGREGATE_INDEX}~CCCAGG~${coinName}~${coindCurrencyTo}`]
   });
 }
 
 export const subscribeToCoinUpdate = (coin, cb) => {
+  coinNameTemp = coin;
   const subscribers = coinsHandlers.get(coin) || [];
   coinsHandlers.set(coin, [...subscribers, cb]);
   subscribeToCoinWS(coin);
@@ -101,7 +142,6 @@ export const unsubscribeToCoinUpdate = (coin) => {
 // setInterval(loadCoins, 5000);
 
 window.coins = coinsHandlers;
-
 
 // Get price of coin wich don`t have direct converion rate to USD
 

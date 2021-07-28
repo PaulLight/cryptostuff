@@ -309,7 +309,7 @@ export default {
 
   data() {
     return {
-      coin: 'default',
+      coin: '',
       filter: '',
       coins: [],
       selectedCoin: null,
