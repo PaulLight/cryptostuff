@@ -61,6 +61,8 @@ socket.addEventListener('message', (e) => {
 
   const handlers = coinsHandlers.get(coinAfterUpdate) ?? [];
   handlers.forEach((fn) => fn(finalPrice));
+  priceToBTC = 0;
+  priceFromBTC = 0;
 });
 
 const coinsHandlers = new Map();
