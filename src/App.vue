@@ -259,7 +259,10 @@
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
           {{ selectedCoin.name }} - USD
         </h3>
-        <div class="flex items-end border-gray-600 border-b border-l h-64">
+        <div
+          class="flex items-end border-gray-600 border-b border-l h-64"
+          ref="graph"
+        >
           <div
             v-for="(bar, idx) in normalizedGraph"
             :key="idx"
@@ -314,6 +317,7 @@ export default {
       coins: [],
       selectedCoin: null,
       graph: [],
+      maxGraphElements: 1,
       allCoins: null,
       loaderVisibility: true,
       sameCoinError: false,
@@ -360,6 +364,25 @@ export default {
     }
     // setInterval(() => this.updateCoins(), 5000);
     // setInterval(this.updateCoins, 5000);
+  },
+
+  mounted() {
+    setTimeout(() => {
+      this.loaderVisibility = false;
+    }, 500);
+
+    axios
+      .get('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
+      .then((response) => {
+        if (response.status === 200) {
+          return (this.allCoins = response.data.Data);
+        }
+      });
+    window.addEventListener('resize', this.calculateMaxGraphElements);
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('resize', this.calculateMaxGraphElements);
   },
 
   computed: {
@@ -409,6 +432,13 @@ export default {
   },
 
   methods: {
+    calculateMaxGraphElements() {
+      if (!this.$refs.graph) {
+        return;
+      }
+      this.maxGraphElements = this.$refs.graph.clientWidth / 38;
+    },
+
     addCoin(coinForm) {
       let createdCoin = this.coin;
 
@@ -440,20 +470,29 @@ export default {
     },
 
     updateCoin(coinName, newPrice) {
-      const newCoin = this.coins.filter((coin) => coin.name === coinName);
-      return newCoin.forEach((coin) => {
-        coin.price = newPrice;
+      this.coins
+        .filter((coin) => coin.name === coinName)
+        .forEach((coin) => {
+          coin.price = newPrice;
 
-        if (coin === this.selectedCoin) {
-          this.graph.push(newPrice);
-        }
-      });
+          if (coin === this.selectedCoin) {
+            this.graph.push(newPrice);
+            if (this.graph.length > this.maxGraphElements) {
+              const startIterator =
+                Math.floor(this.graph.length) -
+                Math.floor(this.maxGraphElements);
+              this.graph = this.graph.slice(startIterator, this.graph.length);
+            }
+          }
+        });
     },
 
     removeCoin(coinToRemove) {
       this.coins = this.coins.filter((coin) => coin !== coinToRemove);
+      if (this.selectedCoin === coinToRemove) {
+        this.selectedCoin = null;
+      }
       unsubscribeToCoinUpdate(coinToRemove.name);
-      this.selectedCoin = '';
     },
 
     formatPrice(price) {
@@ -462,23 +501,6 @@ export default {
       }
 
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
-    },
-
-    async updateCoins() {
-      // const self = this;
-      // if (!this.coins.length) {
-      //   return;
-      // }
-      // const exchangeData = await loadCoins(self.coins.map((coin) => coin.name));
-      // self.coins.forEach((coin) => {
-      //   const price = exchangeData[coin.name.toUpperCase()];
-      //   // if (!price) {
-      //   //   coin.price = '-';
-      //   //   return;
-      //   // }
-      //   // same below
-      //   coin.price = price ?? '-';
-      // });
     },
 
     suggestedCoinsArray() {
@@ -518,6 +540,10 @@ export default {
   watch: {
     selectedCoin() {
       this.graph = [];
+
+      this.$nextTick(() => {
+        this.calculateMaxGraphElements();
+      });
     },
 
     coins() {
@@ -545,20 +571,6 @@ export default {
         `${window.location.pathname}?filter=${this.filter}&page=${this.page}`
       );
     }
-  },
-
-  mounted() {
-    setTimeout(() => {
-      this.loaderVisibility = false;
-    }, 500);
-
-    axios
-      .get('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
-      .then((response) => {
-        if (response.status === 200) {
-          return (this.allCoins = response.data.Data);
-        }
-      });
   }
 };
 </script>

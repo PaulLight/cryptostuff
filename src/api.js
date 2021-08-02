@@ -13,7 +13,6 @@ let priceToBTC = 0;
 let priceFromBTC = 0;
 
 socket.addEventListener('message', (e) => {
-  console.log(e);
   let finalPrice = 0;
   let coinAfterUpdate = '';
 
